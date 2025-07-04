@@ -62,7 +62,7 @@ def load_auth_data(json_path, config, phone):
     if os.path.exists(json_path):
         with open(json_path, 'r') as f:
             auth_data = json.load(f)
-        # Проверяем наличие необходимых данных
+        
         required_fields = ['app_id', 'app_hash', 'device', 'sdk', 'app_version', 'lang_pack', 'lang_code', 'system_lang_code']
         missing_fields = [field for field in required_fields if not auth_data.get(field)]
         if missing_fields:
@@ -84,7 +84,7 @@ def load_auth_data(json_path, config, phone):
         return auth_data
     logger.info(t("log.auth_data_missing_creating", locale="en", file=json_path))
     console.print(f"[yellow]{t('menu.auth_data_missing_creating', locale=config['language'], file=json_path)}[/yellow]")
-    # Генерируем случайные данные с использованием opentele
+    
     api_data = API.TelegramDesktop.Generate(system="windows", unique_id=phone)
     default_auth_data = {
         "phone": phone,
@@ -186,7 +186,7 @@ async def process_session(json_file, proxies, semaphore, config):
         client._init_request.lang_pack = lang_pack
         new_session_file = os.path.join(new_sessions_dir, auth_data.get('session_file', phone))
         new_json_file = os.path.join(new_sessions_dir, os.path.basename(json_file))
-        # Генерируем новые данные для новой сессии
+        
         new_api = API.TelegramDesktop.Generate(system="windows", unique_id=os.path.basename(new_session_file))
         new_proxy = random.choice(proxies) if proxies else None
         if new_proxy:
@@ -219,13 +219,13 @@ async def process_session(json_file, proxies, semaphore, config):
                 new_two_fa = await generate_random_password()
                 try:
                     if two_fa:
-                        # Если есть текущий пароль 2FA, используем его для изменения
+                        
                         await client.edit_2fa(
                             current_password=two_fa,
                             new_password=new_two_fa
                         )
                     else:
-                        # Если 2FA не установлен, устанавливаем новый пароль
+                        
                         try:
                             await client.edit_2fa(new_password=new_two_fa)
                         except SessionPasswordNeededError:
@@ -401,13 +401,13 @@ async def run_process(config):
         if not proxies:
             running = False
             return
-        # Проверяем все .session файлы в папке sessions
+        
         session_files = [f for f in os.listdir(sessions_dir) if f.endswith('.session')]
         json_files = []
         for session_file in session_files:
             phone = os.path.splitext(session_file)[0]
             json_path = os.path.join(json_dir, f"{phone}.json")
-            # Если JSON-файл отсутствует, он будет создан в load_auth_data
+            
             json_files.append(os.path.join(json_dir, f"{phone}.json"))
         if not json_files:
             console.print(f"[red]{t('menu.no_json_files', locale=config['language'], dir=json_dir)}[/red]")
