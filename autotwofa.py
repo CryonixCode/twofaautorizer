@@ -13,6 +13,7 @@ from text import t
 from loguru import logger
 from config import load_config
 from menu import run_menu
+from faker import Faker
 
 logger.remove()
 logger.add("autotwofa.log", rotation="10 MB", format="{time:YYYY-MM-DD HH:mm:ss} - {level} - {message}")
@@ -57,13 +58,51 @@ def load_proxies(config):
         console.print(f"[red]{t('menu.proxy_error', locale=config['language'], error=t('error.proxy_empty', locale=config['language']))}[/red]")
     return proxies
 
-def load_auth_data(json_path, config):
+def load_auth_data(json_path, config, phone):
     if os.path.exists(json_path):
         with open(json_path, 'r') as f:
-            return json.load(f)
-    logger.error(t("log.auth_data_missing", locale="en", file=json_path))
-    console.print(f"[red]{t('menu.auth_data_missing', locale=config['language'], file=json_path)}[/red]")
-    return {}
+            auth_data = json.load(f)
+        # Проверяем наличие необходимых данных
+        required_fields = ['app_id', 'app_hash', 'device', 'sdk', 'app_version', 'lang_pack', 'lang_code', 'system_lang_code']
+        missing_fields = [field for field in required_fields if not auth_data.get(field)]
+        if missing_fields:
+            logger.info(t("log.api_data_missing_generating", locale="en", file=json_path))
+            console.print(f"[yellow]{t('menu.api_data_missing_generating', locale=config['language'], file=json_path)}[/yellow]")
+            api_data = API.TelegramDesktop.Generate(system="windows", unique_id=phone)
+            auth_data['app_id'] = api_data.api_id
+            auth_data['app_hash'] = api_data.api_hash
+            auth_data['device'] = api_data.device_model
+            auth_data['sdk'] = api_data.system_version
+            auth_data['app_version'] = api_data.app_version
+            auth_data['lang_pack'] = api_data.lang_pack
+            auth_data['lang_code'] = api_data.lang_code
+            auth_data['system_lang_code'] = api_data.system_lang_code
+            with open(json_path, 'w') as f:
+                json.dump(auth_data, f, indent=4)
+            logger.info(t("log.api_data_generated", locale="en", file=json_path))
+            console.print(f"[green]{t('menu.api_data_generated', locale=config['language'], file=json_path)}[/green]")
+        return auth_data
+    logger.info(t("log.auth_data_missing_creating", locale="en", file=json_path))
+    console.print(f"[yellow]{t('menu.auth_data_missing_creating', locale=config['language'], file=json_path)}[/yellow]")
+    # Генерируем случайные данные с использованием opentele
+    api_data = API.TelegramDesktop.Generate(system="windows", unique_id=phone)
+    default_auth_data = {
+        "phone": phone,
+        "session_file": phone,
+        "app_id": api_data.api_id,
+        "app_hash": api_data.api_hash,
+        "device": api_data.device_model,
+        "sdk": api_data.system_version,
+        "app_version": api_data.app_version,
+        "lang_pack": api_data.lang_pack,
+        "lang_code": api_data.lang_code,
+        "system_lang_code": api_data.system_lang_code
+    }
+    with open(json_path, 'w') as f:
+        json.dump(default_auth_data, f, indent=4)
+    logger.info(t("log.auth_data_created", locale="en", file=json_path))
+    console.print(f"[green]{t('menu.auth_data_created', locale=config['language'], file=json_path)}[/green]")
+    return default_auth_data
 
 def save_auth_data(json_path, data, config):
     with open(json_path, 'w') as f:
@@ -86,14 +125,17 @@ async def ensure_connected(client, phone, config):
             return False
     return True
 
-async def generate_random_password(length=12):
-    import string
-    characters = string.ascii_letters + string.digits + string.punctuation
-    return ''.join(random.choice(characters) for _ in range(length))
+async def generate_random_password():
+    fake = Faker('en_US')
+    name = fake.first_name()
+    year = random.randint(2000, 2025)
+    return f"{name}{year}"
 
 async def process_session(json_file, proxies, semaphore, config):
     async with semaphore:
-        auth_data = load_auth_data(json_file, config)
+        phone = os.path.splitext(os.path.basename(json_file))[0]
+        json_path = os.path.join(json_dir, f"{phone}.json")
+        auth_data = load_auth_data(json_path, config, phone)
         if not auth_data:
             return False
         json_filename = os.path.splitext(os.path.basename(json_file))[0]
@@ -106,22 +148,16 @@ async def process_session(json_file, proxies, semaphore, config):
         api_id = auth_data.get('app_id')
         api_hash = auth_data.get('app_hash')
         two_fa = auth_data.get('twoFA') or auth_data.get('password')
-        lang_pack = auth_data.get('lang_pack', 'tdesktop')
-        lang_code = auth_data.get('lang_code', 'en')
-        system_lang_code = auth_data.get('system_lang_code', 'en-US')
-        device = auth_data.get('device', 'Desktop')
-        sdk = auth_data.get('sdk', 'Windows 10')
-        app_version = auth_data.get('app_version', '3.4.3 x64')
-        if not all([api_id, api_hash]):
+        lang_pack = auth_data.get('lang_pack')
+        lang_code = auth_data.get('lang_code')
+        system_lang_code = auth_data.get('system_lang_code')
+        device = auth_data.get('device')
+        sdk = auth_data.get('sdk')
+        app_version = auth_data.get('app_version')
+        if not all([api_id, api_hash, lang_pack, lang_code, system_lang_code, device, sdk, app_version]):
             logger.error(t("log.api_data_missing", locale="en", file=json_file))
             console.print(f"[red]{t('menu.api_data_missing', locale=config['language'], file=json_file)}[/red]")
             return False
-        if not isinstance(lang_pack, str):
-            lang_pack = "tdesktop"
-        if not isinstance(lang_code, str):
-            lang_code = "en"
-        if not isinstance(system_lang_code, str):
-            system_lang_code = "en-US"
         if not os.path.exists(session_file + '.session'):
             logger.error(t("log.session_missing", locale="en", phone=phone))
             console.print(f"[red]{t('menu.session_missing', locale=config['language'], phone=phone)}[/red]")
@@ -150,6 +186,7 @@ async def process_session(json_file, proxies, semaphore, config):
         client._init_request.lang_pack = lang_pack
         new_session_file = os.path.join(new_sessions_dir, auth_data.get('session_file', phone))
         new_json_file = os.path.join(new_sessions_dir, os.path.basename(json_file))
+        # Генерируем новые данные для новой сессии
         new_api = API.TelegramDesktop.Generate(system="windows", unique_id=os.path.basename(new_session_file))
         new_proxy = random.choice(proxies) if proxies else None
         if new_proxy:
@@ -181,10 +218,20 @@ async def process_session(json_file, proxies, semaphore, config):
             if config['change_2fa']:
                 new_two_fa = await generate_random_password()
                 try:
-                    await client.edit_2fa(
-                        current_password=two_fa if two_fa else None,
-                        new_password=new_two_fa
-                    )
+                    if two_fa:
+                        # Если есть текущий пароль 2FA, используем его для изменения
+                        await client.edit_2fa(
+                            current_password=two_fa,
+                            new_password=new_two_fa
+                        )
+                    else:
+                        # Если 2FA не установлен, устанавливаем новый пароль
+                        try:
+                            await client.edit_2fa(new_password=new_two_fa)
+                        except SessionPasswordNeededError:
+                            logger.error(t("log.two_fa_unexpectedly_required", locale="en", phone=phone))
+                            console.print(f"[red]{t('menu.two_fa_unexpectedly_required', locale=config['language'], phone=phone)}[/red]")
+                            return False
                     logger.info(t("log.two_fa_changed", locale="en", phone=phone, new_two_fa=new_two_fa))
                     console.print(f"[green]{t('menu.two_fa_changed', locale=config['language'], phone=phone, new_two_fa=new_two_fa)}[/green]")
                     logger.info(t("log.waiting_sync", locale="en", seconds=config['retry_delay']))
@@ -200,15 +247,20 @@ async def process_session(json_file, proxies, semaphore, config):
                     logger.error(t("log.two_fa_change_error", locale="en", phone=phone, error=str(e)))
                     console.print(f"[red]{t('menu.two_fa_change_error', locale=config['language'], phone=phone, error=str(e))}[/red]")
                     return False
-            new_auth_data = auth_data.copy()
-            new_auth_data['lang_pack'] = lang_pack
-            new_auth_data['lang_code'] = lang_code
-            new_auth_data['system_lang_code'] = system_lang_code
-            new_auth_data['phone_code_hash'] = None
-            new_auth_data['code'] = None
-            new_auth_data['session_file'] = os.path.basename(new_session_file)
-            new_auth_data['twoFA'] = new_two_fa
-            new_auth_data['password'] = new_two_fa
+            new_auth_data = {
+                'phone': phone,
+                'session_file': os.path.basename(new_session_file),
+                'app_id': new_api.api_id,
+                'app_hash': new_api.api_hash,
+                'device': new_api.device_model,
+                'sdk': new_api.system_version,
+                'app_version': new_api.app_version,
+                'lang_pack': new_api.lang_pack,
+                'lang_code': new_api.lang_code,
+                'system_lang_code': new_api.system_lang_code,
+                'twoFA': new_two_fa,
+                'password': new_two_fa
+            }
             if not os.path.exists(new_sessions_dir):
                 os.makedirs(new_sessions_dir)
                 logger.info(t("log.dir_created", locale="en", dir=new_sessions_dir))
@@ -349,13 +401,20 @@ async def run_process(config):
         if not proxies:
             running = False
             return
-        json_files = [f for f in os.listdir(json_dir) if f.endswith('.json')]
+        # Проверяем все .session файлы в папке sessions
+        session_files = [f for f in os.listdir(sessions_dir) if f.endswith('.session')]
+        json_files = []
+        for session_file in session_files:
+            phone = os.path.splitext(session_file)[0]
+            json_path = os.path.join(json_dir, f"{phone}.json")
+            # Если JSON-файл отсутствует, он будет создан в load_auth_data
+            json_files.append(os.path.join(json_dir, f"{phone}.json"))
         if not json_files:
             console.print(f"[red]{t('menu.no_json_files', locale=config['language'], dir=json_dir)}[/red]")
             running = False
             return
         semaphore = asyncio.Semaphore(config['max_threads'])
-        tasks = [process_session(os.path.join(json_dir, json_file), proxies, semaphore, config) for json_file in json_files]
+        tasks = [process_session(json_file, proxies, semaphore, config) for json_file in json_files]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         success = all(isinstance(result, bool) and result for result in results)
         if success:
