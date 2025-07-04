@@ -1,7 +1,0 @@
-{
-    "language": "ru",
-    "max_threads": 10,
-    "retry_delay": 20,
-    "logout_old_session": true,
-    "change_2fa": true
-}
