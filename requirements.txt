@@ -1,0 +1,8 @@
+aiohttp==3.9.5
+asyncio==3.4.3
+faker==30.3.0
+loguru==0.7.2
+opentele==1.36.0
+rich==13.7.1
+socks==0.1.0
+telethon==1.36.0
