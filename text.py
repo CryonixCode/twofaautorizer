@@ -141,7 +141,7 @@ translations = {
         "log.change_2fa_updated": "Настройка изменения 2FA обновлена: {value}"
     },
     "en": {
-        "menu.header": "CryonixSoft",
+        "menu.header": "LumeCore",
         "menu.title": "AutoTwoFA Menu",
         "menu.start_process": "[1] Start Reauthorization",
         "menu.change_language": "[2] Change Language",
