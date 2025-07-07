@@ -1,6 +1,6 @@
 translations = {
     "ru": {
-        "menu.header": "CryonixSoft",
+        "menu.header": "LumeCore",
         "menu.title": "Меню AutoTwoFA",
         "menu.start_process": "[1] Запустить переавторизацию",
         "menu.change_language": "[2] Сменить язык",
